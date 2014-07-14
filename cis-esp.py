@@ -24,6 +24,12 @@ import threading
 import time
 import _winreg
 
+_winreg.HKEY_CLASSES_ROOT = int("80000000", 16)
+_winreg.HKEY_CURRENT_USER = int("80000001", 16)
+_winreg.HKEY_LOCAL_MACHINE = int("80000002", 16)
+_winreg.HKEY_USERS = int("80000003", 16)
+_winreg.HKEY_CURRENT_CONFIG = int("80000005", 16)
+
 #third party imports
 import wmi
 
