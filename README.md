@@ -77,6 +77,8 @@ The DataExists.txt and UserDataExists.txt files are used to check for additional
   *These arguments can be used on either version of the scripts. A GUI will automatically display if no arguments are given.*
 
   -o DIR, --output DIR  *Path to store output. Must not have trailing slash. Example: "C:\My Folder".*
+  
+  
   --compress
                         *Compress the results after completion using TAR/BZ2. The uncompressed results will still remain. If run in standalone mode, the compressed file will be located in the results directory.*
 #####Domain Version Only:
