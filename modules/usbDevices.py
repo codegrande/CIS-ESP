@@ -14,6 +14,7 @@
 #limitations under the License.
 
 import _winreg
+from datetime import datetime, timedelta
 import binascii
 
 class usbEntry(object):
@@ -30,7 +31,7 @@ class usbEntry(object):
 		self.driveLetter = "None detected"
 		self.volumeGuid = ""
 		self.binData = ""
-		self.firstUsed = "Not seen in setupapi.log"
+		self.firstUsed = "Device not seen in SetupAPI Logfile"
 		self.lastUsed = "Cannot get key last written time remotely"
 		self.user = ""
 		
@@ -117,34 +118,36 @@ def getUsbDevices(computerName,objRegistry,hostPath,registryList):
 					reg_value = r_value
 					if len(reg_value) > 24:
 						bin_data = binascii.unhexlify(reg_value).decode("utf-16")
-						prefix = bin_data.split("#")[2].replace("&RM","")
-						for device in usbDevices:
-							if device.parentIdPrefix == prefix:
-								device.binData = bin_data
-								if "\\DosDevices\\" in valueNames[x]:
-									driveLetter = valueNames[x][len("\\DosDevices\\"):]
-									device.driveLetter = driveLetter
-								elif "\\??\\Volume" in valueNames[x]:
-									volumeGuid = valueNames[x][len("\\??\\Volume"):]
-									device.volumeGuid = volumeGuid
-									for user_hive,username,userpath in registryList:
-										mountKey = userpath + "\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MountPoints2\\" + volumeGuid
-										result,_ = objRegistry.EnumKey(hDefKey=user_hive,sSubKeyName=mountKey)
-										if result == 0:
-											device.addUser(username)
-									
-	#SYSTEM\CurrentControlSet\Control\DeviceClasses\{53f56307-b6bf-11d0-94f2-00a0c91efb8b}\.*SerialNumber.*
-	#last time used (from last time written?)
-	#cannot get this data remotely
-	
-	inFileStr = "\\\\" + computerName + "\\C$\\Windows\\setupapi.log"
-	setupApiLog = ""
+						if len(bin_data.split('#')) > 2: # Range check since assuming the values are fine will crash us
+							prefix = bin_data.split("#")[2].replace("&RM","")
+							for device in usbDevices:
+								if device.parentIdPrefix == prefix:
+									device.binData = bin_data
+									if "\\DosDevices\\" in valueNames[x]:
+										driveLetter = valueNames[x][len("\\DosDevices\\"):]
+										device.driveLetter = driveLetter
+									elif "\\??\\Volume" in valueNames[x]:
+										volumeGuid = valueNames[x][len("\\??\\Volume"):]
+										device.volumeGuid = volumeGuid
+										for user_hive,username,userpath in registryList:
+											mountKey = userpath + "\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MountPoints2\\" + volumeGuid
+											result,_ = objRegistry.EnumKey(hDefKey=user_hive,sSubKeyName=mountKey)
+											if result == 0:
+												device.addUser(username)
+
 	try:
-		with open(inFileStr, "r") as inFile:
-			setupApiLog = inFile.read()
+		keyName = getattr(_winreg, "HKEY_LOCAL_MACHINE")
+		subkeyName = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"
+		handle = _winreg.OpenKey(keyName, subkeyName)
+		prodValue, type = _winreg.QueryValueEx(handle, "ProductName")
 	except:
-		pass
-		
+		prodValue = "" # This shouldn't happen if we are running on a supported Windows system
+
+	if ("Windows 7" in prodValue or "Windows Vista" in prodValue or "Windows 8" in prodValue):
+		winXP=False
+	else:
+		winXP=True
+
 	outFile.write("\nUSB Devices:\n")
 	for device in usbDevices:
 		outFile.write(device.friendlyName + "\n")
@@ -156,17 +159,54 @@ def getUsbDevices(computerName,objRegistry,hostPath,registryList):
 		outFile.write("Drive Letter: " + device.driveLetter + "\n")
 		outFile.write("Volume GUID: " + device.volumeGuid + "\n")
 		outFile.write("SYSTEM\\MountedDevices Binary Data: " + device.binData + "\n")
-		
-		serialLocation = setupApiLog.find(device.serialNumber)
-		firstTimeStart = setupApiLog.rfind("\n[",0,serialLocation)+2
-		firstTimeEnd = setupApiLog.find("]",firstTimeStart)
-		if serialLocation >= 0 and firstTimeStart >= 2 and firstTimeEnd >= 0:
-			firstTimeEntry = setupApiLog[firstTimeStart:firstTimeEnd]
-			firstTimeSplit = firstTimeEntry.split(" ")
-			if len(firstTimeSplit) >= 2:
-				device.firstUsed = firstTimeSplit[0] + " " + firstTimeSplit[1]
+
+		setupApiLog = ""
+		curDevice = "\\" + str(device.serialNumber) + "]"
+
+		try:
+			foundEntry = False
+			if(not winXP):
+				inFileStr = "\\\\" + computerName + "\\C$\\Windows\inf\setupapi.dev.log"
+				with open(inFileStr, "r") as inFile:
+					for num, line in enumerate(inFile):
+						if (foundEntry): # We are now at the line for the timestamp
+							device.firstUsed = str(line).replace('>>>  Section start','')
+							break
+						if curDevice in line:
+							foundEntry = True
+			else:
+				inFileStr = "\\\\" + computerName + "\\C$\\Windows\\setupapi.log"
+				with open(inFileStr, "r") as inFile:
+					setupApiLog = inFile.read()
+				serialLocation = setupApiLog.find(device.serialNumber)
+				firstTimeStart = setupApiLog.rfind("\n[",0,serialLocation)+2
+				firstTimeEnd = setupApiLog.find("]",firstTimeStart)
+				if serialLocation >= 0 and firstTimeStart >= 2 and firstTimeEnd >= 0:
+					firstTimeEntry = setupApiLog[firstTimeStart:firstTimeEnd]
+					firstTimeSplit = firstTimeEntry.split(" ")
+					if len(firstTimeSplit) >= 2:
+						device.firstUsed = firstTimeSplit[0] + " " + firstTimeSplit[1]
+		except:
+			pass
+
+		try:
+			try:
+				subkeyName = ("SYSTEM\\CurrentControlSet\\Control\\DeviceClasses\\{53f56307-b6bf-11d0-94f2-00a0c91efb8b}\\##?#USBSTOR#Disk&Ven_" + device.vendor + 
+					"&Prod_" + device.product + "&Rev_" + device.version + "#" + device.serialNumber + "#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}")
+				handle = _winreg.OpenKey(keyName, subkeyName)
+			except:
+				subkeyName = ("SYSTEM\\CurrentControlSet\\Control\\DeviceClasses\\{53f56307-b6bf-11d0-94f2-00a0c91efb8b}\\##?#USBSTOR#CdRom&Ven_" + device.vendor +
+					"&Prod_" + device.product + "&Rev_" + device.version + "#" + device.serialNumber + "#{53f56307-b6bf-11d0-94f2-00a0c91efb8b}")
+				handle = _winreg.OpenKey(keyName, subkeyName)
+
+			keyTime = _winreg.QueryInfoKey(handle)
+			ns_since_epoch = keyTime[2]
+			ms = ns_since_epoch / 10.0
+			device.lastUsed = str(datetime(1601,1,1) + timedelta(microseconds=ms)).replace('-',"/")
+		except:
+			pass
 			
 		outFile.write("First Used: " + device.firstUsed + "\n")
-		outFile.write("Last Used: " + device.lastUsed + "\n")
+		outFile.write("Last Used: " + device.lastUsed + " UTC\n")
 		outFile.write("User: " + device.user + "\n")
 		outFile.write("\n")

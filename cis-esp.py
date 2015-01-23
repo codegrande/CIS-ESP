@@ -20,15 +20,17 @@ import os
 import Queue
 import sys
 import tempfile
+import tarfile
 import threading
 import time
 import _winreg
 
-_winreg.HKEY_CLASSES_ROOT = int("80000000", 16)
-_winreg.HKEY_CURRENT_USER = int("80000001", 16)
-_winreg.HKEY_LOCAL_MACHINE = int("80000002", 16)
-_winreg.HKEY_USERS = int("80000003", 16)
-_winreg.HKEY_CURRENT_CONFIG = int("80000005", 16)
+_winreg.HKEY_CLASSES_ROOT = int("80000000",16)
+_winreg.HKEY_CURRENT_USER = int("80000001",16)
+_winreg.HKEY_LOCAL_MACHINE = int("80000002",16)
+_winreg.HKEY_USERS = int("80000003",16)
+_winreg.HKEY_CURRENT_CONFIG = int("80000005",16)
+
 
 #third party imports
 import wmi
@@ -76,6 +78,7 @@ mutexTestGroup.add_argument("--norun", metavar="TEST1,TEST2,...", help="List the
 mutexTestGroup.add_argument("--tests", metavar="BITSTRING", help="1 or 0 for run or don't run test. Must have exactly " + str(len(RUN_ALL_TESTS)) + " digits (the number of possible tests).")
 otherOptionsGroup = parser.add_argument_group("Other Options", "Additional options that you can use.")
 otherOptionsGroup.add_argument("--listous", action="store_true", help="If you want to enumerate the OUs without using the GUI or dsquery.")
+otherOptionsGroup.add_argument("--compress", action="store_true", help="Compress the results after completion. The uncompressed results will remain. If run in standalone mode, the compressed file will be located in the results directory.")
 args = parser.parse_args()
 
 #get any user input for the appropriate parameters
@@ -95,6 +98,10 @@ tests = args.tests
 threads = args.threads
 run = args.run
 norun = args.norun
+compressRes = 0
+if args.compress:
+	compressRes = 1
+defPaths = [ ]
 
 currentPath = os.path.abspath(".")
 numThreads = 1
@@ -103,7 +110,7 @@ isStandalone = False
 #check if there are arguments
 #if no arguments, prompt gui
 if len(sys.argv) < 2:
-	scanName,workPath,ldapPath,tests,numThreads = rasGUI.showGUI()
+	scanName,workPath,ldapPath,tests,numThreads,compressRes = rasGUI.showGUI()
 
 #ldap path is required for domain version
 #if no ldap path, use standalone
@@ -136,10 +143,14 @@ else:
 
 currentTimestamp = time.strftime("%Y%m%d%H%M%S")
 
+# Store workPath to know where to store the compressed results
+mainDir = workPath
+
 if not isStandalone:
 	domainName = support.getDomainName()
 
 	#work path is where data is saved
+
 	workPath = workPath + "\\" + currentTimestamp + "-" + scanName + "-" + domainName
 else:
 	computerName = os.environ['COMPUTERNAME']
@@ -305,6 +316,8 @@ def runScans(host, domainName):
 	
 	print "Starting scan: " + computerName
 	
+	defPaths.append(hostPath)
+
 	if domainName != None:
 		#write a per host error and time file to track scan duration
 		hostErrorLog = open(hostPath + "\\error.txt", "w")
@@ -435,3 +448,21 @@ doneFile.close()
 #write the current time to the timefile indicating the end of scan
 timeFile.write("End: " + time.strftime("%m/%d/%Y %H:%M:%S") + "\n")
 timeFile.close()
+
+if compressRes:
+	print "Compressing results..."
+	if not isStandalone:
+		bzFile = currentTimestamp + "-" + scanName + "-" + domainName + ".bz2"
+	else:
+		bzFile = currentTimestamp + "-" + computerName + ".bz2"
+
+	# Compress files
+	with tarfile.open(mainDir + "\\" + bzFile, "w:bz2") as tf:
+		for dirName in defPaths:
+			tf.add(dirName, arcname=os.path.basename(dirName))
+
+		if not isStandalone:
+			tf.add(workPath + "\\timefile.txt", arcname=os.path.basename("timefile.txt"))
+			tf.add(workPath + "\\errlog.txt", arcname=os.path.basename("errlog.txt"))
+	tf.close()
+	print "Complete"

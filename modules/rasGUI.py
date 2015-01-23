@@ -28,7 +28,7 @@ ou = ""
 testString = ""
 numThreads = ""
 
-versionDescriptionLabel = Label(root, text="The standalone version will run only on this system. The domain version allows you to choose an OU and run it on all live systems in that OU. The domain version requires you to be on a domain controller.")
+versionDescriptionLabel = Label(root, text="The standalone version will run only on this system. The domain version allows you to choose an OU and run it on all live systems in that OU.\n The domain version requires you to be on a domain controller.")
 button_opt = {'fill': Tkconstants.BOTH, 'padx': 5, 'pady': 5}
 
 scanNameEntry = Entry(root, bd=5, width=100)
@@ -66,6 +66,8 @@ runShellbagsVar = IntVar()
 runShellbagsVar.set(1)
 runUsbDevicesVar = IntVar()
 runUsbDevicesVar.set(1)
+compressVar = IntVar()
+compressVar.set(0)
 
 def askdirectory():
 	"""Returns a selected directoryname."""
@@ -174,6 +176,9 @@ def createGUI(standalone):
 	runUsbDevicesCheck = Checkbutton(root, text="USB Device Enumeration", variable=runUsbDevicesVar)
 	runUsbDevicesCheck.pack()
 	
+	compressCheck = Checkbutton(root, text="Compress Results", variable=compressVar)
+	compressCheck.pack()
+	
 	Button(text='Select All', command=selectAll).pack(**button_opt)
 	Button(text='Deselect All', command=deselectAll).pack(**button_opt)
 	
@@ -240,6 +245,6 @@ def showGUI():
 	root.title("CIS Enumeration and Scanning Program")
 	root.mainloop()
 	root.destroy()
-	return (scanName,outputDir,ou,testString,numThreads)
+	return (scanName,outputDir,ou,testString,numThreads,compressVar.get())
 	
 	
