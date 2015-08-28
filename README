@@ -96,7 +96,7 @@ Domain Version Only:
 
   -l LDAP, --ldap LDAP  Case sensitive LDAP path to OU. Example: "LDAP://OU="Ball Room",DC=Domain,DC=local". This will enumerate all sub-OU's as well.
   -i HOSTSFILE, --hosts HOSTSFILE
-                        Specify the hosts file to skip enumerating an OU. Example: "hosts.txt".
+                        Specifying the hosts file will skip enumerating any OUs and will only scan the systems included in the file. This file should contain a newline seperated list of computer names. Example: "hosts.txt".
   -I OULISTFILE, --ous OULISTFILE
                         Specify the OU list file to enumerate multiple separated OU's. Example: "ous.txt".
   -n NAME, --name NAME  One word conventional name for scan. Example: "HR".
