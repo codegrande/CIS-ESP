@@ -40,7 +40,7 @@ def pollReg(computerName,hostPath,username,hive,userpath,objRegistry,tmpIndicato
 					result,valueNames,valueTypes = objRegistry.EnumValues(hDefKey=hive,sSubKeyName=fullkey+"\\"+subkey+"\\"+"Count")
 					if result == 0:
 						for value in valueNames:
-							outFile.write(key.replace(","," ") + "," + str(value).encode('rot13').replace(","," ") + ",USERASSIST\n")
+							outFile.write(key.replace(","," ") + "," + value.encode('rot13').replace(","," ") + ",USERASSIST\n")
 		else:
 			result,subkeys = objRegistry.EnumKey(hDefKey=hive,sSubKeyName=fullkey)
 			if result == 0:
