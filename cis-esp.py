@@ -408,6 +408,18 @@ def runScans(host, domainName):
 		#end time for this particular host
 		hostTimeFile.write("End: " + time.strftime("%m/%d/%Y %H:%M:%S") + "\n")
 		hostTimeFile.close()
+	hostsysInfo = open(hostPath + "\\sysInfo.txt", "w")
+	
+	# Grab the system information for this host (e.g. OS Version, Service Pack, Architecture)
+	for osInfo in objWMIService.Win32_OperatingSystem():
+		hostsysInfo.write("Operating System: " + osInfo.Caption + "\n")
+		hostsysInfo.write("Service Pack: " + osInfo.CSDVersion + "\n")
+		try:
+			hostsysInfo.write("Architecture: " + osInfo.osArchitecture + "\n")
+		except:
+			# WMI python bindings doesn't seem to return osArchitecture on 32-bit systems.
+			hostsysInfo.write("Architecture: Not detected, likely 32-bit.\n")
+	hostsysInfo.close()
 	print "Finished scan: " + computerName
 
 #worker thread
